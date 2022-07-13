@@ -7,7 +7,7 @@ env:
 
 jobs:
   test:
-    name: Test
+    name: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -21,7 +21,7 @@ jobs:
           command: test
 
   fmt:
-    name: Rustfmt
+    name: rustfmt
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -30,13 +30,11 @@ jobs:
           toolchain: stable
           override: true
           components: rustfmt
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+      - run: cargo fmt --all -- --check
+      
 
   clippy:
-    name: Clippy
+    name: clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -45,13 +43,10 @@ jobs:
           toolchain: stable
           override: true
           components: clippy
-      - uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: -- -D warnings
+      - run: cargo clippy --all-features -- -D warnings
 
   coverage:
-    name: Code coverage
+    name: code coverage
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
