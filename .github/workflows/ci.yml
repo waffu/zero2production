@@ -135,7 +135,7 @@ jobs:
           sudo apt-get install libpq-dev -y
           SKIP_DOCKER=true ./scripts/init_db.sh
       - name: Run clippy
-      - run: cargo clippy --all-features -- -D warnings
+        run: cargo clippy --all-features -- -D warnings
 
   coverage:
     name: Code coverage
