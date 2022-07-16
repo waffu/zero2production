@@ -1,6 +1,7 @@
-use sqlx::PgPool;
+use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::TcpListener;
-use zero2prod::configuration::get_configuration;
+use uuid::Uuid;
+use zero2prod::configuration::{get_configuration, DatabaseSettings};
 use zero2prod::startup::run;
 
 struct TestApp {
@@ -9,14 +10,14 @@ struct TestApp {
 }
 
 async fn spawn_app() -> TestApp {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("failed to bind randomly assigned port");
+    let listener = TcpListener::bind("127.0.0.1:0").expect("failed to bind random port");
+    // We retrieve the port assigned to us by the OS
     let port = listener.local_addr().unwrap().port();
     let address = format!("http://127.0.0.1:{}", port);
 
-    let configuration = get_configuration().expect("failed to read configuration");
-    let connection_pool = PgPool::connect(&configuration.database.connection_string())
-        .await
-        .expect("failed to connect to postgres");
+    let mut configuration = get_configuration().expect("failed to read configuration.");
+    configuration.database.database_name = Uuid::new_v4().to_string();
+    let connection_pool = configure_database(&configuration.database).await;
 
     let server = run(listener, connection_pool.clone()).expect("failed to bind address");
     let _ = tokio::spawn(server);
@@ -24,6 +25,31 @@ async fn spawn_app() -> TestApp {
         address,
         db_pool: connection_pool,
     }
+}
+
+pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
+    println!("{}", config.connection_string_without_db());
+    // connect to postgres instance
+    let mut connection = PgConnection::connect(&config.connection_string_without_db())
+        .await
+        .expect("failed to connect to postgres");
+
+    connection
+        .execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
+        .await
+        .expect("failed to create database");
+
+    // migrate db
+    let connection_pool = PgPool::connect(&config.connection_string())
+        .await
+        .expect("failed to connect to postgres");
+
+    sqlx::migrate!("./migrations")
+        .run(&connection_pool)
+        .await
+        .expect("failed to migrate database");
+
+    connection_pool
 }
 
 #[tokio::test]
@@ -46,9 +72,9 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
     // setup
     let app = spawn_app().await;
     let client = reqwest::Client::new();
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
     // execute
-    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
     let response = client
         .post(&format!("{}/subscribe", &app.address))
         .header("Content-Type", "application/x-www-form-urlencoded")

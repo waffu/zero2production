@@ -29,8 +29,6 @@ pub async fn subscribe(form: web::Form<FormData>, pool: web::Data<PgPool>) -> Ht
     .execute(pool.as_ref())
     .await;
 
-    println!("query worked ?");
-
     match query {
         Ok(_) => HttpResponse::Ok().finish(),
         Err(e) => {
